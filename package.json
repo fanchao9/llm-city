@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "lab:ping": "tsx sim/lab/00-ping.ts"
+    "lab:ping": "tsx sim/lab/00-ping.ts",
+    "lab:01": "tsx sim/lab/01-raw-chat.ts",
+    "lab:02": "tsx sim/lab/02-temperature.ts"
   },
   "dependencies": {
     "next": "16.4.6",
