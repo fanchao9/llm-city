@@ -78,6 +78,7 @@ Small scripts under `sim/lab/`, each teaching one idea:
 5. Statelessness: the model forgets everything unless you resend it.
 6. Context window: stuff the prompt until quality drops.
 7. Embeddings: similarity between sentences, the basis for memory retrieval.
+8. Hallucination and grounding: ask about facts the model can't know, then paste the facts into the prompt and compare. This is why NPCs get world facts from memory, not from the model.
 
 Output: a reusable `sim/llm/client.ts` with `chat()`, `chatJson()` and `embed()`, a request queue, and latency logging.
 

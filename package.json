@@ -14,7 +14,8 @@
     "lab:04": "tsx sim/lab/04-structured-output.ts",
     "lab:05": "tsx sim/lab/05-statelessness.ts",
     "lab:06": "tsx sim/lab/06-context-window.ts",
-    "lab:07": "tsx sim/lab/07-embeddings.ts"
+    "lab:07": "tsx sim/lab/07-embeddings.ts",
+    "lab:08": "tsx sim/lab/08-grounding.ts"
   },
   "dependencies": {
     "next": "16.4.6",
