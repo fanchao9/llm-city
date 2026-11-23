@@ -9,7 +9,9 @@
     "lint": "eslint",
     "lab:ping": "tsx sim/lab/00-ping.ts",
     "lab:01": "tsx sim/lab/01-raw-chat.ts",
-    "lab:02": "tsx sim/lab/02-temperature.ts"
+    "lab:02": "tsx sim/lab/02-temperature.ts",
+    "lab:03": "tsx sim/lab/03-personas.ts",
+    "lab:04": "tsx sim/lab/04-structured-output.ts"
   },
   "dependencies": {
     "next": "16.4.6",
