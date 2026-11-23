@@ -12,7 +12,8 @@
     "lab:02": "tsx sim/lab/02-temperature.ts",
     "lab:03": "tsx sim/lab/03-personas.ts",
     "lab:04": "tsx sim/lab/04-structured-output.ts",
-    "lab:05": "tsx sim/lab/05-statelessness.ts"
+    "lab:05": "tsx sim/lab/05-statelessness.ts",
+    "lab:06": "tsx sim/lab/06-context-window.ts"
   },
   "dependencies": {
     "next": "16.4.6",
