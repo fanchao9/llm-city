@@ -34,7 +34,7 @@ export type AgentState = {
 export type StateMessage = {
   tick: number;
   day: number;
-  time: string; // "HH:MM"
+  time: string; // HH:MM
   running: boolean;
   speed: number; // ticks per real second
   agents: AgentState[];

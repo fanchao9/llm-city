@@ -3,7 +3,6 @@ import type { Point, TownMap } from "./map";
 
 type Node = { x: number; y: number; f: number; order: number };
 
-// Minimal binary min-heap ordered by f, then insertion order (so results are deterministic).
 class MinHeap {
   private items: Node[] = [];
   get size() {
@@ -54,7 +53,7 @@ const NEIGHBORS = [
 ] as const;
 
 /**
- * Cheapest path from `start` to `goal`, as the tiles to step onto in order (start excluded, goal included).
+ * Cheapest path from `start` to `goal` (start excluded, goal included).
  * Returns [] if start equals goal, and null if the goal cannot be reached.
  */
 export function findPath(map: TownMap, start: Point, goal: Point): Point[] | null {
@@ -62,7 +61,6 @@ export function findPath(map: TownMap, start: Point, goal: Point): Point[] | nul
   if (start.x === goal.x && start.y === goal.y) return [];
 
   const key = (x: number, y: number) => y * map.width + x;
-  // The cheapest tile costs 1, so Manhattan distance never overestimates. That keeps A* optimal.
   const heuristic = (x: number, y: number) => Math.abs(x - goal.x) + Math.abs(y - goal.y);
 
   const best = new Map<number, number>([[key(start.x, start.y), 0]]);
@@ -86,7 +84,6 @@ export function findPath(map: TownMap, start: Point, goal: Point): Point[] | nul
       return path.reverse();
     }
 
-    // Skip stale heap entries (a cheaper route to this tile was found after this one was queued).
     if (current.f > currentCost + heuristic(current.x, current.y)) continue;
 
     for (const [dx, dy] of NEIGHBORS) {

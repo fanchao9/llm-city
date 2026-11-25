@@ -12,7 +12,7 @@ import { config } from "./config";
 import { SPEEDS } from "./protocol";
 import { World } from "./world/world";
 
-const FRAME_MS = 50; // how often the loop checks whether a tick is due
+const FRAME_MS = 50;
 const MAX_BODY_BYTES = 1024;
 const KEEPALIVE_MS = 15_000;
 
@@ -29,7 +29,7 @@ const ControlSchema = z.discriminatedUnion("action", [
 let world = new World();
 let running = false;
 let speed: number = SPEEDS[1];
-let accumulator = 0; // fractional ticks owed
+let accumulator = 0;
 
 const clients = new Set<ServerResponse>();
 
@@ -55,7 +55,6 @@ setInterval(() => {
   if (!running) return;
 
   accumulator += elapsedSeconds * speed;
-  // Cap catch-up after a stall so we never run a burst of thousands of ticks.
   const due = Math.min(Math.floor(accumulator), speed);
   if (due <= 0) return;
   accumulator = Math.min(accumulator - due, 1);
@@ -115,7 +114,7 @@ function applyControl(command: z.infer<typeof ControlSchema>) {
       accumulator = 0;
       break;
     case "step":
-      running = false; // stepping by hand implies paused
+      running = false;
       accumulator = 0;
       world.step();
       break;
