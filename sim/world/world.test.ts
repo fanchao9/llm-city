@@ -98,7 +98,7 @@ describe("world", () => {
     const bakery = world.map.location("bakery");
     assert.deepEqual({ x: maren.x, y: maren.y }, { x: bakery.x, y: bakery.y });
     assert.equal(maren.walking, false);
-    assert.equal(maren.state().activity, "At Bakery");
+    assert.equal(maren.state(world.tick).activity, "At Bakery");
   });
 
   it("moves at most one tile per tick", () => {

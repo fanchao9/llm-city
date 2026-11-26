@@ -28,6 +28,8 @@ export type AgentState = {
   walking: boolean;
   targetId: string; // location the agent is heading to or standing at
   activity: string; // human-readable for UI
+  thinking: boolean;
+  say: string | null;
 };
 
 // Sent on every change (SSE event "state").
@@ -46,3 +48,36 @@ export type ControlRequest =
   | { action: "step" }
   | { action: "reset" }
   | { action: "speed"; value: number };
+
+export const DECISION_ACTIONS = ["continue", "move_to", "speak"] as const;
+export type AgentDecision = {
+  thought: string;
+  action: (typeof DECISION_ACTIONS)[number];
+  target: string;
+  say: string;
+};
+
+export type CallAttempt = {
+  raw: string;
+  error: string | null;
+  durationMs: number;
+  promptTokens: number;
+  completionTokens: number;
+};
+
+export type CallRecord = {
+  id: number;
+  agentId: string;
+  agentName: string;
+  day: number;
+  time: string;
+  model: string;
+  system: string;
+  user: string;
+  schema: object;
+  attempts: CallAttempt[];
+  source: "llm" | "fallback";
+  decision: AgentDecision;
+  outcome: string;
+  durationMs: number;
+};
