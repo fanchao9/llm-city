@@ -1,20 +1,25 @@
 // The simulation process. Runs the world clock and serves the browser UI over HTTP.
 // Run with: npm run sim
 //
-//   GET  /events   Server-Sent Events: one "init" event, then a "state" event on every change.
+//   GET  /events   Server-Sent Events: "init", then "calls" (recent LLM decisions), then "state" on every
+//                  change and "call" for each new LLM decision.
 //   POST /control  JSON body: {"action":"play"|"pause"|"step"|"reset"} or {"action":"speed","value":5}
 //
 // The server listens on 127.0.0.1 only, and only accepts browser requests from config.uiOrigins.
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
+import { Brain } from "./brain/brain";
 import { config } from "./config";
+import { OllamaClient } from "./llm/client";
 import { SPEEDS } from "./protocol";
+import type { CallRecord } from "./protocol";
 import { World } from "./world/world";
 
 const FRAME_MS = 50;
 const MAX_BODY_BYTES = 1024;
 const KEEPALIVE_MS = 15_000;
+const MAX_CALL_HISTORY = 50;
 
 const ControlSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("play") }),
@@ -26,7 +31,25 @@ const ControlSchema = z.discriminatedUnion("action", [
   }) }),
 ]);
 
-let world = new World();
+const llm = new OllamaClient();
+const calls: CallRecord[] = []; // oldest first
+
+function createWorld() {
+  const newWorld = new World({ thinkingIds: config.thinkingAgents });
+  const newBrain = new Brain(
+    newWorld,
+    llm,
+    (record) => {
+      calls.push(record);
+      if (calls.length > MAX_CALL_HISTORY) calls.shift();
+      for (const res of clients) sendEvent(res, "call", record);
+    },
+    () => broadcast(),
+  );
+  return { world: newWorld, brain: newBrain };
+}
+
+let { world, brain } = createWorld();
 let running = false;
 let speed: number = SPEEDS[1];
 let accumulator = 0;
@@ -52,13 +75,18 @@ setInterval(() => {
   const now = performance.now();
   const elapsedSeconds = (now - lastFrame) / 1000;
   lastFrame = now;
-  if (!running) return;
+  // Hold the clock while the LLM is thinking.
+  if (!running || brain.busy) return;
 
   accumulator += elapsedSeconds * speed;
   const due = Math.min(Math.floor(accumulator), speed);
   if (due <= 0) return;
   accumulator = Math.min(accumulator - due, 1);
-  for (let i = 0; i < due; i++) world.step();
+  for (let i = 0; i < due; i++) {
+    world.step();
+    brain.afterStep();
+    if (brain.busy) break; // pause at the decision point
+  }
   broadcast();
 }, FRAME_MS);
 
@@ -116,10 +144,16 @@ function applyControl(command: z.infer<typeof ControlSchema>) {
     case "step":
       running = false;
       accumulator = 0;
-      world.step();
+      if (!brain.busy) {
+        world.step();
+        brain.afterStep();
+      }
       break;
     case "reset":
-      world = new World();
+      brain.dispose(); // ignore answers still in flight for the old world
+      ({ world, brain } = createWorld());
+      calls.length = 0;
+      for (const res of clients) sendEvent(res, "calls", calls);
       running = false;
       accumulator = 0;
       break;
@@ -151,6 +185,7 @@ const server = http.createServer(async (req, res) => {
       ...cors,
     });
     sendEvent(res, "init", world.initMessage());
+    sendEvent(res, "calls", calls);
     sendEvent(res, "state", currentState());
     clients.add(res);
     const keepAlive = setInterval(() => res.write(": keep-alive\n\n"), KEEPALIVE_MS);
@@ -186,6 +221,11 @@ const server = http.createServer(async (req, res) => {
 server.listen(config.simPort, "127.0.0.1", () => {
   console.log(`Simulation server on http://127.0.0.1:${config.simPort}`);
   console.log(`Allowed UI origins: ${config.uiOrigins.join(", ")}`);
+  console.log(
+    config.thinkingAgents.length > 0
+      ? `LLM agents: ${config.thinkingAgents.join(", ")} (model ${config.chatModel} at ${config.ollamaUrl})`
+      : "LLM agents: none (schedules only)",
+  );
 });
 
 function shutdown() {
