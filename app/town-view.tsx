@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentState, ControlRequest, InitMessage, StateMessage } from "@/sim/protocol";
+import type { AgentState, CallRecord, ControlRequest, InitMessage, StateMessage } from "@/sim/protocol";
+import CallInspector from "./call-inspector";
+
+const MAX_CALLS_SHOWN = 50;
 
 const SIM_URL = process.env.NEXT_PUBLIC_SIM_URL ?? "http://localhost:4000";
 const TILE = 24;
@@ -79,21 +82,80 @@ function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
   ctx.fillText(text, x, y);
 }
 
+// Wrap text into lines no wider than maxWidth.
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  const words = text.split(/\s+/).filter(Boolean);
+  for (const [i, word] of words.entries()) {
+    const attempt = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(attempt).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = attempt;
+    }
+    if (lines.length === maxLines) {
+      lines[maxLines - 1] += "…";
+      return lines;
+    }
+    if (i === words.length - 1) lines.push(line);
+  }
+  return lines;
+}
+
+function drawBubble(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, canvasWidth: number) {
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "left";
+  const lines = wrapText(ctx, text, 150, 4);
+  const lineHeight = 14;
+  const padding = 6;
+  const width = Math.max(...lines.map((l) => ctx.measureText(l).width)) + padding * 2;
+  const height = lines.length * lineHeight + padding * 2;
+  const left = Math.min(Math.max(x - width / 2, 2), canvasWidth - width - 2);
+  const top = Math.max(y - 14 - height, 2);
+
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(left, top, width, height, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x - 4, top + height);
+  ctx.lineTo(x, top + height + 6);
+  ctx.lineTo(x + 4, top + height);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+
+  ctx.fillStyle = "#18181b";
+  for (const [i, line] of lines.entries()) ctx.fillText(line, left + padding, top + padding + 10 + i * lineHeight);
+}
+
 export default function TownView() {
   const [init, setInit] = useState<InitMessage | null>(null);
   const [state, setState] = useState<StateMessage | null>(null);
+  const [calls, setCalls] = useState<CallRecord[]>([]); // newest first
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const latestState = useRef<StateMessage | null>(null);
 
-  // Receive the world from the simulation process.
   useEffect(() => {
     const source = new EventSource(`${SIM_URL}/events`);
     source.onopen = () => setConnected(true);
     source.onerror = () => setConnected(false); // EventSource retries by itself
     source.addEventListener("init", (e) => setInit(JSON.parse((e as MessageEvent).data) as InitMessage));
+    source.addEventListener("calls", (e) => {
+      const history = JSON.parse((e as MessageEvent).data) as CallRecord[];
+      setCalls(history.slice(-MAX_CALLS_SHOWN).reverse());
+    });
+    source.addEventListener("call", (e) => {
+      const call = JSON.parse((e as MessageEvent).data) as CallRecord;
+      setCalls((previous) => [call, ...previous].slice(0, MAX_CALLS_SHOWN));
+    });
     source.addEventListener("state", (e) => {
       const message = JSON.parse((e as MessageEvent).data) as StateMessage;
       latestState.current = message;
@@ -102,7 +164,6 @@ export default function TownView() {
     return () => source.close();
   }, []);
 
-  // Draw the world every animation frame, easing agents toward their latest server position.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!init || !canvas) return;
@@ -128,6 +189,7 @@ export default function TownView() {
       }
 
       const agents: AgentState[] = latestState.current?.agents ?? [];
+      const bubbles: { text: string; x: number; y: number }[] = [];
       const tileCount = new Map<string, number>();
       const ease = 1 - Math.exp(-dt * 10);
       for (const agent of agents) {
@@ -150,7 +212,11 @@ export default function TownView() {
         ctx.strokeStyle = "#fff";
         ctx.stroke();
         drawLabel(ctx, agent.name, pos.x * TILE, pos.y * TILE + 19, 10);
+
+        if (agent.thinking) bubbles.push({ text: "…", x: pos.x * TILE, y: pos.y * TILE - 7 });
+        else if (agent.say) bubbles.push({ text: agent.say, x: pos.x * TILE, y: pos.y * TILE - 7 });
       }
+      for (const bubble of bubbles) drawBubble(ctx, bubble.text, bubble.x, bubble.y, init.width * TILE);
       frame = requestAnimationFrame(render);
     };
     frame = requestAnimationFrame(render);
@@ -221,7 +287,11 @@ export default function TownView() {
           className="w-full rounded border border-zinc-700 bg-zinc-900"
           style={init ? { aspectRatio: `${init.width} / ${init.height}`, maxWidth: init.width * TILE * 1.5 } : { height: 300 }}
         />
-        <p className="text-xs text-zinc-500">Speed: 1× is one game minute per second. 60× is one game hour per second.</p>
+        <p className="text-xs text-zinc-500">
+          Speed: 1× is one game minute per second. 60× is one game hour per second. The clock waits while an agent is
+          thinking.
+        </p>
+        <CallInspector calls={calls} />
       </div>
 
       <aside className="lg:w-64">
@@ -232,7 +302,7 @@ export default function TownView() {
               <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: agent.color }} />
               <div className="min-w-0">
                 <div className="text-sm font-medium">{agent.name}</div>
-                <div className="truncate text-xs text-zinc-400">{agent.activity}</div>
+                <div className={`truncate text-xs ${agent.thinking ? "text-amber-300" : "text-zinc-400"}`}>{agent.activity}</div>
               </div>
             </li>
           ))}
