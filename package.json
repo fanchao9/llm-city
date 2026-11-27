@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "sim": "tsx sim/server.ts",
-    "test:sim": "tsx --test sim/world/world.test.ts",
+    "test:sim": "tsx --test sim/world/world.test.ts sim/brain/brain.test.ts",
     "lab:ping": "tsx sim/lab/00-ping.ts",
     "lab:01": "tsx sim/lab/01-raw-chat.ts",
     "lab:02": "tsx sim/lab/02-temperature.ts",
